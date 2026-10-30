@@ -1,0 +1,50 @@
+# Virtual environments
+.venv/
+.venv313/
+backend_venv/
+venv/
+Detecting-Cheating-with-computer-vision-Real-Time-Exam-Hall-Monitoring/.venv313/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Database (generated at runtime)
+examguard.db
+
+# Runtime directories (generated at runtime)
+uploads/
+outputs/
+
+# Large model files tracked via Git LFS or excluded
+# Uncomment the next two lines if you do NOT want to push model weights:
+# *.pt
+
+# Demo video (large, optional)
+# demo.mp4
+
+# Logs
+*.log

@@ -28,6 +28,24 @@ const api = axios.create({
   },
 });
 
+// Guard against SPA fallback rewrites returning index.html as a 200 string
+api.interceptors.response.use(
+  (response) => {
+    if (
+      typeof response.data === 'string' &&
+      (response.data.trim().startsWith('<!doctype html') || response.data.trim().startsWith('<html'))
+    ) {
+      return Promise.reject(
+        new Error('API returned HTML instead of JSON. Ensure the FastAPI backend is running.')
+      );
+    }
+    return response;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 api.interceptors.request.use((config) => {
   config.baseURL = getApiBase();
   return config;

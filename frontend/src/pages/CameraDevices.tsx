@@ -34,7 +34,7 @@ export const CameraDevices: React.FC = () => {
     setLoading(true);
     try {
       const data = await listCameras();
-      setCameras(data);
+      setCameras(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Failed to load cameras:', err);
     } finally {

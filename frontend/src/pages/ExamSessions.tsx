@@ -46,8 +46,8 @@ export const ExamSessions: React.FC = () => {
         listSessions(),
         listCameras().catch(() => []),
       ]);
-      setSessions(sess);
-      setCameras(cams);
+      setSessions(Array.isArray(sess) ? sess : []);
+      setCameras(Array.isArray(cams) ? cams : []);
     } catch (err) {
       console.error('Error loading sessions:', err);
     } finally {

@@ -46,9 +46,9 @@ export const Overview: React.FC<OverviewProps> = ({ health }) => {
         fetchDemoVideo().catch(() => ({ available: false })),
       ]);
       setSummary(sum);
-      setRecentEvents(evts?.events || []);
-      setRecentSessions(sess || []);
-      setDemoAvailable(demo.available);
+      setRecentEvents(Array.isArray(evts?.events) ? evts.events : []);
+      setRecentSessions(Array.isArray(sess) ? sess : []);
+      setDemoAvailable(Boolean(demo?.available));
     } finally {
       setLoading(false);
     }

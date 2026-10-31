@@ -52,8 +52,8 @@ export const DetectionEvents: React.FC = () => {
         session_id: selectedSession || undefined,
         min_confidence: minConfidence > 0 ? minConfidence : undefined,
       });
-      setEvents(res.events);
-      setTotal(res.total);
+      setEvents(Array.isArray(res?.events) ? res.events : []);
+      setTotal(typeof res?.total === 'number' ? res.total : 0);
     } catch (err) {
       console.error('Error fetching events:', err);
     } finally {

@@ -81,13 +81,13 @@ export const VideoAnalysis: React.FC = () => {
     try {
       const demo = await fetchDemoVideo();
       setDemoVideo(demo);
-      if (demo.available) {
+      if (demo?.available) {
         setSelectedVideoType('demo');
         setSelectedFilename('demo.mp4');
         setPreviewInputUrl('/api/videos/serve/demo.mp4');
       }
       const sess = await listSessions();
-      setSessions(sess);
+      setSessions(Array.isArray(sess) ? sess : []);
       loadJobsList();
     } catch (err) {
       console.error('Init error:', err);
@@ -97,7 +97,7 @@ export const VideoAnalysis: React.FC = () => {
   const loadJobsList = async () => {
     try {
       const jobs = await listJobs();
-      setRecentJobs(jobs);
+      setRecentJobs(Array.isArray(jobs) ? jobs : []);
     } catch (err) {
       console.error('Failed to load jobs list:', err);
     }
@@ -335,7 +335,7 @@ export const VideoAnalysis: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="">None (Independent Analysis)</option>
-                {sessions.map((s) => (
+                {(Array.isArray(sessions) ? sessions : []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.session_name} — {s.exam_name}
                   </option>
@@ -510,11 +510,11 @@ export const VideoAnalysis: React.FC = () => {
           {/* Past Analysis Jobs Log */}
           <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/50">
             <h3 className="text-sm font-semibold text-white mb-3">Recent Video Jobs History</h3>
-            {recentJobs.length === 0 ? (
+            {(!Array.isArray(recentJobs) || recentJobs.length === 0) ? (
               <p className="text-xs text-slate-500">No past jobs on record.</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {recentJobs.slice(0, 5).map((job) => (
+                {(Array.isArray(recentJobs) ? recentJobs : []).slice(0, 5).map((job) => (
                   <div
                     key={job.id}
                     onClick={() => setActiveJob(job)}

@@ -1,12 +1,36 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE || '';
+export const getApiBase = (): string => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('examguard_api_base');
+    if (saved) return saved.trim();
+  }
+  return import.meta.env.VITE_API_BASE || '';
+};
+
+export const setApiBase = (url: string): void => {
+  if (typeof window !== 'undefined') {
+    if (url) {
+      localStorage.setItem('examguard_api_base', url.trim());
+    } else {
+      localStorage.removeItem('examguard_api_base');
+    }
+  }
+  api.defaults.baseURL = getApiBase();
+};
+
+export const API_BASE = getApiBase();
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: getApiBase(),
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  config.baseURL = getApiBase();
+  return config;
 });
 
 export interface HealthStatus {

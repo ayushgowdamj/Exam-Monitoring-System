@@ -14,7 +14,7 @@ import {
   Info,
   Terminal,
 } from 'lucide-react';
-import { HealthStatus, fetchHealth } from '../api/client';
+import { HealthStatus, fetchHealth, getApiBase, setApiBase } from '../api/client';
 
 interface SettingsProps {
   health: HealthStatus | null;
@@ -25,6 +25,8 @@ export const Settings: React.FC<SettingsProps> = ({ health }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [confidence, setConfidence] = useState<number>(0.25);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [backendUrl, setBackendUrl] = useState<string>(getApiBase());
+  const [apiSavedNotice, setApiSavedNotice] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -245,6 +247,59 @@ export const Settings: React.FC<SettingsProps> = ({ health }) => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Backend API Connection Settings */}
+      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-6 backdrop-blur-sm shadow-md">
+        <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-2">
+          <Server className="w-5 h-5 text-blue-400" />
+          Backend API Host & Deployment URL
+        </h2>
+        <p className="text-xs text-slate-400 mb-4">
+          When deployed to Vercel, specify the remote backend endpoint running the YOLO model (e.g. Render, Railway, or local tunnel). Leave blank for default local proxy.
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setApiBase(backendUrl);
+            setApiSavedNotice(true);
+            setTimeout(() => setApiSavedNotice(false), 3000);
+            handleRefresh();
+          }}
+          className="space-y-4 max-w-xl"
+        >
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-300">
+              API Base URL:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={backendUrl}
+                onChange={(e) => setBackendUrl(e.target.value)}
+                placeholder="http://127.0.0.1:8000 or https://your-backend.up.railway.app"
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-blue-600/30"
+              >
+                Save URL
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Current: <code className="text-blue-400 font-mono">{backendUrl || '(Direct Relative Proxy / Same Origin)'}</code>
+            </p>
+          </div>
+
+          {apiSavedNotice && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+              <CheckCircle2 className="w-4 h-4" />
+              Backend API URL updated successfully! Testing connection...
+            </div>
+          )}
+        </form>
       </div>
 
       {/* Developer & System Information */}

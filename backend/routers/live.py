@@ -82,3 +82,4 @@ def live_stream():
         _mjpeg_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
+

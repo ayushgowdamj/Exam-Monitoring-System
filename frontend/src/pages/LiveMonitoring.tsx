@@ -1,253 +1,474 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Radio,
   Camera,
   Play,
-  Pause,
-  Maximize2,
+  Square,
   RefreshCw,
   AlertTriangle,
   ShieldCheck,
+  ShieldAlert,
   Activity,
-  Layers,
-  Settings,
-  Grid,
+  Maximize2,
+  ExternalLink,
+  Wifi,
+  WifiOff,
+  Clock,
+  Sliders,
+  CheckCircle2,
 } from 'lucide-react';
-import { listCameras, CameraDevice } from '../api/client';
 import { Link } from 'react-router-dom';
+import {
+  startLiveMonitoring,
+  stopLiveMonitoring,
+  fetchLiveStatus,
+  LiveStatus,
+} from '../api/client';
 
 export const LiveMonitoring: React.FC = () => {
-  const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedCamera, setSelectedCamera] = useState<string | null>(null);
-  const [gridSize, setGridSize] = useState<'1x1' | '2x2' | '3x3'>('2x2');
-  const [isSimulatingStream, setIsSimulatingStream] = useState(true);
+  const [cameraIp, setCameraIp] = useState<string>('10.134.243.228');
+  const [status, setStatus] = useState<LiveStatus | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [frameTimestamp, setFrameTimestamp] = useState<number>(Date.now());
+  const [viewMode, setViewMode] = useState<'ai_stream' | 'direct_esp32'>('ai_stream');
+  const [streamError, setStreamError] = useState<boolean>(false);
 
+  // Poll status regularly
   useEffect(() => {
-    const fetchCams = async () => {
-      setLoading(true);
+    let isMounted = true;
+    const checkStatus = async () => {
       try {
-        const cams = await listCameras();
-        setCameras(cams);
-        if (cams.length > 0) {
-          setSelectedCamera(cams[0].id);
+        const s = await fetchLiveStatus();
+        if (isMounted) {
+          setStatus(s);
+          if (s.running && s.connected) {
+            setFrameTimestamp(Date.now());
+            setStreamError(false);
+          }
+          if (s.error) {
+            setErrorMessage(s.error);
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch cameras:', err);
-      } finally {
-        setLoading(false);
+        // Backend might be warming up
       }
     };
-    fetchCams();
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 1500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
+
+  const handleStart = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    setStreamError(false);
+    try {
+      const res = await startLiveMonitoring(cameraIp);
+      if (res.ok) {
+        setFrameTimestamp(Date.now());
+        const s = await fetchLiveStatus();
+        setStatus(s);
+      } else {
+        setErrorMessage(res.message || 'Failed to start live stream');
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err.response?.data?.detail || 'Unable to connect to camera or start live background worker'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStop = async () => {
+    setIsLoading(true);
+    try {
+      await stopLiveMonitoring();
+      const s = await fetchLiveStatus();
+      setStatus(s);
+    } catch (err: any) {
+      setErrorMessage('Failed to stop live monitoring');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Clean camera IP for direct link
+  const cleanIp = cameraIp.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+  const directEsp32Url = `http://${cleanIp}/`;
+  const directMjpegUrl = `http://${cleanIp}:81/stream`;
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/40 border border-slate-800">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-              <Radio className="w-7 h-7 text-rose-500 animate-pulse" />
-              Live Exam Monitoring
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5">
+              <Radio className="w-6 h-6 text-rose-500 animate-pulse" />
+              ESP32-CAM Live AI Exam Monitor
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-              Live Surveillance
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${
+                status?.running && status?.connected
+                  ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                  : status?.running
+                  ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                  : 'bg-slate-800 border border-slate-700 text-slate-400'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  status?.running && status?.connected
+                    ? 'bg-emerald-400 animate-ping'
+                    : status?.running
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-slate-500'
+                }`}
+              />
+              {status?.running && status?.connected
+                ? 'ONLINE & INFERENCING'
+                : status?.running
+                ? 'CONNECTING TO CAMERA...'
+                : 'STANDBY'}
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Real-time optical feed grid for active examination halls and invigilation stations.
+          <p className="text-xs text-slate-400 mt-1">
+            Real-time video feed from hardware station with live YOLO cheating & non-cheating classification
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Grid Layout Switcher */}
-          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
-            {(['1x1', '2x2', '3x3'] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setGridSize(mode)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  gridSize === mode
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-
           <Link
             to="/video-analysis"
-            className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center gap-2 border border-slate-700 shadow-sm"
+            className="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center gap-2 border border-slate-700 shadow-sm"
           >
-            Recorded Analysis
+            Recorded Video Workspace
           </Link>
         </div>
       </div>
 
-      {/* Main Monitoring Deck */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Stream View Area (3 cols) */}
-        <div className="lg:col-span-3 space-y-4">
-          <div
-            className={`grid gap-4 ${
-              gridSize === '1x1'
-                ? 'grid-cols-1'
-                : gridSize === '2x2'
-                ? 'grid-cols-1 md:grid-cols-2'
-                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-            }`}
+      {/* Error banner */}
+      {errorMessage && (
+        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-950/20 text-rose-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="text-rose-400 hover:text-white font-semibold ml-4"
           >
-            {/* Feed Cards (simulated streams based on registered cameras or default fallback cards) */}
-            {(cameras.length > 0 ? cameras : [null, null]).slice(0, gridSize === '1x1' ? 1 : gridSize === '2x2' ? 4 : 6).map((cam, idx) => (
-              <div
-                key={cam ? cam.id : `mock-${idx}`}
-                className="relative rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden group shadow-lg flex flex-col aspect-video"
-              >
-                {/* Video Feed Simulation Background */}
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-950/90 to-black flex items-center justify-center">
-                  <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
-                  <div className="text-center z-10 px-4">
-                    <Camera className="w-10 h-10 text-slate-700 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                    <div className="text-xs font-semibold text-slate-400">
-                      {cam ? cam.name : `Exam Hall Cam #${idx + 1}`}
-                    </div>
-                    <div className="text-[10px] text-slate-600 mt-0.5 font-mono">
-                      {cam?.stream_url ? cam.stream_url : 'Awaiting RTSP/MJPEG handshake...'}
-                    </div>
-                  </div>
-                </div>
+            Dismiss
+          </button>
+        </div>
+      )}
 
-                {/* Stream Header Overlay */}
-                <div className="relative z-20 p-3 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] font-bold tracking-wide uppercase border border-rose-500/30 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                      LIVE
-                    </span>
-                    <span className="text-xs font-medium text-white truncate max-w-[120px]">
-                      {cam ? cam.name : `CAM-0${idx + 1}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-                      25 FPS
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-                      1080p
-                    </span>
-                  </div>
-                </div>
+      {/* Main Grid: Stream & Controls */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Stream Canvas (8 cols) */}
+        <div className="lg:col-span-8 space-y-4">
+          <div className="relative rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex flex-col aspect-video">
+            {/* View Mode Switcher Header */}
+            <div className="relative z-20 p-3.5 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/60 to-transparent">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] font-bold tracking-wide uppercase border border-rose-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                  FEED
+                </span>
+                <span className="text-xs font-semibold text-white font-mono truncate">
+                  {cameraIp}
+                </span>
+              </div>
 
-                {/* Center Inference Mock Bounding Box */}
-                {isSimulatingStream && idx === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
-                    <div className="w-40 h-28 border-2 border-emerald-500/80 rounded-lg relative bg-emerald-500/5 animate-pulse">
-                      <span className="absolute -top-3 left-2 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-mono text-[9px] font-bold">
-                        non-cheating 94%
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Bottom Overlay Controls */}
-                <div className="relative z-20 mt-auto p-3 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[11px] text-slate-300">
-                    {cam?.location || 'General Seating Area'}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setIsSimulatingStream(!isSimulatingStream)}
-                      className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition-colors"
-                      title="Toggle Model Overlay"
-                    >
-                      <Activity className="w-3.5 h-3.5 text-blue-400" />
-                    </button>
-                    <button
-                      className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition-colors"
-                      title="Fullscreen"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 text-[11px]">
+                  <button
+                    onClick={() => setViewMode('ai_stream')}
+                    className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                      viewMode === 'ai_stream'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    AI Annotated Feed
+                  </button>
+                  <button
+                    onClick={() => setViewMode('direct_esp32')}
+                    className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                      viewMode === 'direct_esp32'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Direct Camera Web
+                  </button>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Video Viewport */}
+            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+              {viewMode === 'ai_stream' ? (
+                status?.running && !streamError ? (
+                  <img
+                    key={frameTimestamp}
+                    src={`/api/live/frame?t=${frameTimestamp}`}
+                    alt="ESP32 Live Feed"
+                    className="w-full h-full object-contain"
+                    onError={() => {
+                      if (!status?.connected) {
+                        setStreamError(true);
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="text-center p-6 space-y-3">
+                    <div className="w-16 h-16 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                      <Camera className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-300">
+                        {status?.running ? 'Connecting to Camera Stream...' : 'Live Stream Paused'}
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        {status?.running
+                          ? `Attempting handshake with ESP32-CAM at ${cameraIp}. Ensure the device is powered on and connected to the same Wi-Fi network.`
+                          : 'Click "Start Live Inference" on the right to start continuous monitoring with the YOLO model.'}
+                      </p>
+                    </div>
+                    {!status?.running && (
+                      <button
+                        onClick={handleStart}
+                        disabled={isLoading}
+                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all inline-flex items-center gap-2"
+                      >
+                        <Play className="w-4 h-4 fill-white" />
+                        Start Live Inference
+                      </button>
+                    )}
+                  </div>
+                )
+              ) : (
+                /* Direct ESP32 Web UI view or fallback iframe */
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-slate-950 text-center">
+                  <div className="max-w-md space-y-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
+                      <ExternalLink className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">
+                        Direct ESP32 Camera Web Server
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        The ESP32-CAM hosts its internal OV5640 configuration and raw MJPEG stream directly at{' '}
+                        <code className="text-blue-400 font-mono">{directEsp32Url}</code>.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                      <a
+                        href={directEsp32Url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open Camera Web Page
+                      </a>
+                      <a
+                        href={directMjpegUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center justify-center gap-2"
+                      >
+                        Direct MJPEG Stream (:81)
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Overlay Status Bar */}
+            <div className="relative z-20 p-3 bg-gradient-to-t from-black/90 to-transparent flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-slate-300">
+                  {status?.connected ? (
+                    <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                  )}
+                  {status?.connected ? 'Link Active' : 'Offline'}
+                </span>
+                {status?.last_inference_time && (
+                  <span className="text-slate-400">
+                    Infer: <span className="text-blue-400">{status.last_inference_time}</span>
+                  </span>
+                )}
+                {status?.fps !== undefined && (
+                  <span className="text-slate-400">
+                    Rate: <span className="text-slate-200">{status.fps} fps</span>
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Frames Processed:{' '}
+                <span className="text-white font-semibold">{status?.frames_processed || 0}</span>
+              </div>
+            </div>
           </div>
 
-          {/* Monitoring Controls & Notice */}
-          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {/* Detections Strip */}
+          <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-white">Continuous Inference Engine</h4>
+                <h4 className="text-xs font-semibold text-white">YOLO Model Live Inference</h4>
                 <p className="text-[11px] text-slate-400">
-                  Real-time frames are sampled at interval rates to maintain low latency and server load.
+                  Model analyzes frames and displays real cheating / non-cheating bounding boxes
                 </p>
               </div>
             </div>
+
+            {/* Current Frame Detections */}
             <div className="flex items-center gap-2">
-              <Link
-                to="/cameras"
-                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors border border-slate-700"
-              >
-                Manage Camera Devices
-              </Link>
+              {status?.latest_detections && status.latest_detections.length > 0 ? (
+                status.latest_detections.map((d, i) => (
+                  <span
+                    key={i}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+                      d.class_name === 'cheating'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}
+                  >
+                    {d.class_name === 'cheating' ? (
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    )}
+                    {d.class_name} {(d.confidence * 100).toFixed(0)}%
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-slate-500 italic">No targets in frame</span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Sidebar Controls & Alerts Feed (1 col) */}
-        <div className="space-y-4">
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm">
-            <h3 className="font-semibold text-white text-sm mb-3 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-400" />
-              Real-Time Feed Stats
+        {/* Control Sidebar (4 cols) */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* Camera Configuration Card */}
+          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-blue-400" />
+              Camera Configuration
             </h3>
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Active Cameras</span>
-                <span className="font-semibold text-white">{cameras.length} registered</span>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-300">
+                ESP32-CAM IP / Endpoint:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cameraIp}
+                  onChange={(e) => setCameraIp(e.target.value)}
+                  placeholder="10.134.243.228"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+                />
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Inference Delay</span>
-                <span className="font-mono text-emerald-400">~42ms</span>
+              <p className="text-[10px] text-slate-500">
+                Default: <span className="font-mono text-slate-400">10.134.243.228</span> (Port 80 snapshot /capture API)
+              </p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-2">
+              {status?.running ? (
+                <button
+                  onClick={handleStop}
+                  disabled={isLoading}
+                  className="w-full py-2.5 rounded-xl border border-rose-500/40 text-rose-400 hover:bg-rose-950/20 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  Stop Live Inference
+                </button>
+              ) : (
+                <button
+                  onClick={handleStart}
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-xs uppercase tracking-wide transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  {isLoading ? 'Connecting...' : 'Start Live Inference'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Real-time Session Analytics */}
+          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-400" />
+              Live Detection Counters
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/20">
+                <span className="text-[10px] text-rose-400/80 block mb-1">Cheating Detections</span>
+                <span className="font-bold text-rose-400 mono text-base flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4" />
+                  {status?.total_cheating || 0}
+                </span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">AI Confidence</span>
-                <span className="font-mono text-blue-400">0.25 (Default)</span>
+
+              <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20">
+                <span className="text-[10px] text-emerald-400/80 block mb-1">Non-Cheating</span>
+                <span className="font-bold text-emerald-400 mono text-base flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  {status?.total_non_cheating || 0}
+                </span>
               </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-slate-400">Resolution Mode</span>
-                <span className="text-slate-300">Auto Adaptive</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Hardware:</span>
+                <span className="text-slate-200">ESP32-CAM OV5640</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Polling Protocol:</span>
+                <span className="text-slate-200">HTTP Snapshot Poll</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Model:</span>
+                <span className="text-blue-400 font-mono">best.pt (YOLOv8)</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm space-y-3">
-            <h3 className="font-semibold text-white text-sm mb-2">Live Session Actions</h3>
-            <Link
-              to="/video-analysis"
-              className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20"
-            >
-              Analyze Prerecorded Video
-            </Link>
-            <Link
-              to="/events"
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-slate-700"
-            >
-              View Detection Log
-            </Link>
+          {/* Quick Hardware Diagnostics */}
+          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/50 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-blue-400" />
+              ESP32-CAM Operational Note
+            </span>
+            <p>
+              The standard ESP32 CameraWebServer firmware processes snapshots via <code className="text-slate-300">/capture</code>. If you reboot or change networks, update the IP above and hit Start.
+            </p>
           </div>
         </div>
       </div>
     </div>
   );
 };
-
+export default LiveMonitoring;

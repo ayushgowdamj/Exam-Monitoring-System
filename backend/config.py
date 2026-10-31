@@ -29,7 +29,7 @@ MAX_UPLOAD_SIZE_MB = 500
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 
 # CORS
-FRONTEND_ORIGIN = "http://localhost:5173"
+FRONTEND_ORIGIN = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # App metadata
 APP_NAME = "AI ExamGuard"

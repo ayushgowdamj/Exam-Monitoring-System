@@ -48,17 +48,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow the local Vite frontend
+# CORS — allow Vite frontend, local development, and Vercel domains
+cors_origins = [
+    FRONTEND_ORIGIN,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-from backend.routers import health, videos, sessions, events, analytics, cameras  # noqa: E402
+from backend.routers import health, videos, sessions, events, analytics, cameras, live  # noqa: E402
 
 app.include_router(health.router)
 app.include_router(videos.router)
@@ -66,6 +74,7 @@ app.include_router(sessions.router)
 app.include_router(events.router)
 app.include_router(analytics.router)
 app.include_router(cameras.router)
+app.include_router(live.router)
 
 
 @app.get("/")

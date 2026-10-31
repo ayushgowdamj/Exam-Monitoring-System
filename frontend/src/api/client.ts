@@ -255,4 +255,39 @@ export const deleteCamera = async (id: string): Promise<void> => {
   await api.delete(`/api/cameras/${id}`);
 };
 
+export interface LiveDetection {
+  class_id: number;
+  class_name: string;
+  confidence: number;
+}
+
+export interface LiveStatus {
+  running: boolean;
+  camera_ip: string | null;
+  connected: boolean;
+  last_frame_time: string | null;
+  last_inference_time: string | null;
+  latest_detections: LiveDetection[];
+  frames_processed: number;
+  total_cheating: number;
+  total_non_cheating: number;
+  error: string | null;
+  fps: number;
+}
+
+export const startLiveMonitoring = async (camera_ip?: string, interval?: number): Promise<{ ok: boolean; message?: string }> => {
+  const { data } = await api.post('/api/live/start', { camera_ip, capture_interval: interval });
+  return data;
+};
+
+export const stopLiveMonitoring = async (): Promise<{ ok: boolean }> => {
+  const { data } = await api.post('/api/live/stop');
+  return data;
+};
+
+export const fetchLiveStatus = async (): Promise<LiveStatus> => {
+  const { data } = await api.get<LiveStatus>('/api/live/status');
+  return data;
+};
+
 export default api;

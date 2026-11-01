@@ -25,6 +25,17 @@ from backend.services.inference import run_inference, get_class_names, is_model_
 
 logger = logging.getLogger(__name__)
 
+def _play_system_beep():
+    """Trigger a physical audible warning beep on the host system."""
+    try:
+        import winsound
+        # 1200 Hz tone for 350 ms
+        winsound.Beep(1200, 350)
+    except Exception:
+        # Fallback terminal bell on non-Windows platforms
+        print("\a", end="", flush=True)
+
+
 def normalize_camera_ip(ip: str) -> str:
     """Normalize input such as 'http://10.134.243.228/' to '10.134.243.228'."""
     ip = ip.strip()
@@ -232,6 +243,10 @@ def _polling_worker(camera_ip: str, capture_interval: float):
                 annotated = label_annotator.annotate(
                     scene=annotated, detections=detections, labels=labels if labels else None
                 )
+
+                if cheating_this_frame > 0:
+                    # Cheating detected: play physical system beep asynchronously
+                    threading.Thread(target=_play_system_beep, daemon=True).start()
 
             inference_ms = round((time.time() - inference_start) * 1000, 1)
 

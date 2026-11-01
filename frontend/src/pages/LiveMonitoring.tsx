@@ -16,6 +16,8 @@ import {
   Clock,
   Sliders,
   CheckCircle2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -33,6 +35,32 @@ export const LiveMonitoring: React.FC = () => {
   const [frameTimestamp, setFrameTimestamp] = useState<number>(Date.now());
   const [viewMode, setViewMode] = useState<'ai_stream' | 'direct_esp32'>('ai_stream');
   const [streamError, setStreamError] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const lastCheatingTimeRef = useRef<number>(0);
+
+  // Synthesize audible warning beep using Web Audio API in browser
+  const playAlertBeep = () => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) return;
+      const ctx = new AudioCtxClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {
+      // Audio autoplay policy may require user interaction first
+    }
+  };
 
   // Poll status regularly
   useEffect(() => {
@@ -45,6 +73,15 @@ export const LiveMonitoring: React.FC = () => {
           if (s.running && s.connected) {
             setFrameTimestamp(Date.now());
             setStreamError(false);
+
+            // Check if cheating was detected in the latest frame
+            if (s.latest_detections && s.latest_detections.some((d) => d.class_name === 'cheating')) {
+              const now = Date.now();
+              if (now - lastCheatingTimeRef.current > 1200) {
+                lastCheatingTimeRef.current = now;
+                playAlertBeep();
+              }
+            }
           }
           if (s.error) {
             setErrorMessage(s.error);
@@ -61,7 +98,7 @@ export const LiveMonitoring: React.FC = () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [soundEnabled]);
 
   const handleStart = async () => {
     setIsLoading(true);
@@ -144,6 +181,29 @@ export const LiveMonitoring: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Sound Alert Toggle */}
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition-all ${
+              soundEnabled
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20 shadow-sm'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+            title={soundEnabled ? 'Click to mute sound alerts' : 'Click to enable sound alerts'}
+          >
+            {soundEnabled ? (
+              <>
+                <Volume2 className="w-4 h-4 text-rose-400 animate-pulse" />
+                <span>Beep Alarm: Active</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-4 h-4 text-slate-500" />
+                <span>Beep Alarm: Muted</span>
+              </>
+            )}
+          </button>
+
           <Link
             to="/video-analysis"
             className="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors flex items-center gap-2 border border-slate-700 shadow-sm"

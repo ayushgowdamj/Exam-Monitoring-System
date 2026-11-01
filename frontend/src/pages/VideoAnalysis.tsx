@@ -165,7 +165,16 @@ export const VideoAnalysis: React.FC = () => {
       setActiveJob(job);
       loadJobsList();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.detail || 'Failed to start analysis job');
+      const detail = err.response?.data?.detail;
+      if (detail) {
+        setErrorMsg(detail);
+      } else if (!err.response) {
+        setErrorMsg(
+          'Cannot connect to the AI Backend. If you are browsing on the Vercel cloud link, your local Python backend is not reachable. Please connect your backend endpoint in Settings, or open the app locally at http://localhost:5173.'
+        );
+      } else {
+        setErrorMsg('Failed to start analysis job: ' + (err.message || 'Server error'));
+      }
     } finally {
       setIsStarting(false);
     }

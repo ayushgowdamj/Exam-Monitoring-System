@@ -48,6 +48,7 @@ api.interceptors.response.use(
 
 api.interceptors.request.use((config) => {
   config.baseURL = getApiBase();
+  config.headers['Bypass-Tunnel-Reminder'] = 'true';
   return config;
 });
 

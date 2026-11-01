@@ -1,6 +1,6 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
-import { Bell, Shield, Cpu, RefreshCw } from 'lucide-react';
+import { useLocation, Link } from 'react-router-dom';
+import { Bell, Shield, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
 import { HealthStatus } from '../../api/client';
 
 interface HeaderProps {
@@ -60,14 +60,25 @@ export const Header: React.FC<HeaderProps> = ({ health, onRefreshHealth }) => {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Model status pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 text-xs">
-          <Cpu className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-slate-400">Model:</span>
-          <span className="font-semibold text-slate-200">
-            {health?.model_loaded ? 'best.pt (Active)' : 'Unloaded'}
+        {/* Model status pill (links to settings for easy connection) */}
+        <Link
+          to="/settings"
+          className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+            health?.model_loaded
+              ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300'
+              : 'border-amber-500/30 bg-amber-950/20 text-amber-300 hover:bg-amber-900/30'
+          }`}
+          title="Click to configure backend connection in Settings"
+        >
+          {health?.model_loaded ? (
+            <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+          )}
+          <span className="font-semibold">
+            {health?.model_loaded ? 'Model: best.pt (Active)' : 'Backend: Offline (Connect)'}
           </span>
-        </div>
+        </Link>
 
         {/* Refresh health */}
         {onRefreshHealth && (

@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ health, onRefreshHealth }) => {
   };
 
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
+    <header className="h-16 shrink-0 border-b border-slate-800 bg-[#020617] px-6 flex items-center justify-between sticky top-0 z-10">
       <div>
         <h1 className="text-lg font-bold text-white flex items-center gap-2">
           {current.title}

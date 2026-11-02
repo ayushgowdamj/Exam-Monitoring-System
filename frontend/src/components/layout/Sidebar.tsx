@@ -34,14 +34,15 @@ const navItems = [
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, health }) => {
+  const sidebarWidth = collapsed ? '5rem' : '16rem';
+
   return (
     <aside
-      className={`fixed top-0 left-0 z-30 h-screen transition-all duration-300 ease-in-out border-r border-slate-800/80 bg-slate-950/95 backdrop-blur-md flex flex-col ${
-        collapsed ? 'w-20' : 'w-64'
-      }`}
+      className="sticky top-0 h-screen shrink-0 border-r border-slate-800 bg-[#020617] flex flex-col z-20 transition-all duration-300"
+      style={{ width: sidebarWidth, minWidth: sidebarWidth, maxWidth: sidebarWidth }}
     >
       {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
             <ShieldCheck className="w-6 h-6 text-white" />
@@ -108,9 +109,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, healt
       </nav>
 
       {/* System Status footer */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-900/40">
+      <div className="p-3 border-t border-slate-800 bg-[#0b1120]">
         <div
-          className={`flex items-center gap-2.5 p-2 rounded-xl border border-slate-800/60 bg-slate-950/60 ${
+          className={`flex items-center gap-2.5 p-2 rounded-xl border border-slate-800 bg-[#020617] ${
             collapsed ? 'justify-center' : ''
           }`}
         >

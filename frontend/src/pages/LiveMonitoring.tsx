@@ -304,21 +304,32 @@ export const LiveMonitoring: React.FC = () => {
               {viewMode === 'ai_stream' ? (
                 status?.running ? (
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
-                    <img
-                      src={`${getApiBase()}/api/live/frame?t=${frameTimestamp}`}
-                      alt="ESP32 Live Feed"
-                      className={`w-full h-full object-contain select-none transition-opacity duration-200 ${
-                        frameError ? 'opacity-0' : 'opacity-100'
-                      }`}
-                      onLoad={() => setFrameError(false)}
-                      onError={() => setFrameError(true)}
-                    />
-                    {frameError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-400 p-6 text-center">
+                    {frameError ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#020617] text-slate-400 p-6 text-center z-10">
                         <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mb-3" />
-                        <p className="text-sm font-semibold text-slate-200">Reconnecting to Live Camera Feed...</p>
-                        <p className="text-xs text-slate-400 mt-1">Waiting for frame from ESP32-CAM ({cameraIp})</p>
+                        <p className="text-sm font-semibold text-slate-200">
+                          Handshaking with ESP32-CAM ({cameraIp})...
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                          Acquiring optical frame and running YOLO inference. Standby graphic will appear shortly.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setFrameError(false);
+                            setFrameTimestamp(Date.now());
+                          }}
+                          className="mt-4 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium border border-slate-700 transition-colors"
+                        >
+                          Retry Frame Sync
+                        </button>
                       </div>
+                    ) : (
+                      <img
+                        src={`${getApiBase()}/api/live/frame?t=${frameTimestamp}`}
+                        alt="ESP32 Live Feed"
+                        className="w-full h-full object-contain select-none"
+                        onError={() => setFrameError(true)}
+                      />
                     )}
                     {!status.connected && !frameError && (
                       <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs backdrop-blur-md flex items-center gap-2">

@@ -250,13 +250,17 @@ export const Settings: React.FC<SettingsProps> = ({ health }) => {
       </div>
 
       {/* Backend API Connection Settings */}
-      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-6 backdrop-blur-sm shadow-md">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-sm shadow-md">
         <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-2">
           <Server className="w-5 h-5 text-blue-400" />
           Backend API Host & Deployment URL
         </h2>
         <p className="text-xs text-slate-400 mb-4">
-          When deployed to Vercel, specify the remote backend endpoint running the YOLO model (e.g. Render, Railway, or local tunnel). Leave blank for default local proxy.
+          The Python backend runs on port 8000 (<code className="text-slate-300">http://127.0.0.1:8000</code>). Leave blank when running locally with Vite.
+          <br />
+          <span className="text-amber-400 font-medium">
+            Note: Do not enter your ESP32-CAM IP here! The ESP32-CAM is configured on the Live Monitoring page.
+          </span>
         </p>
 
         <form
@@ -278,7 +282,7 @@ export const Settings: React.FC<SettingsProps> = ({ health }) => {
                 type="text"
                 value={backendUrl}
                 onChange={(e) => setBackendUrl(e.target.value)}
-                placeholder="http://127.0.0.1:8000 or https://your-backend.up.railway.app"
+                placeholder="Leave blank for local default (http://127.0.0.1:8000)"
                 className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
               />
               <button
@@ -287,11 +291,34 @@ export const Settings: React.FC<SettingsProps> = ({ health }) => {
               >
                 Save URL
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBackendUrl('');
+                  setApiBase('');
+                  setApiSavedNotice(true);
+                  setTimeout(() => setApiSavedNotice(false), 3000);
+                  handleRefresh();
+                }}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium border border-slate-700 transition-colors"
+                title="Reset to local proxy default"
+              >
+                Reset Default
+              </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Current: <code className="text-blue-400 font-mono">{backendUrl || '(Direct Relative Proxy / Same Origin)'}</code>
+              Current: <code className="text-blue-400 font-mono">{backendUrl || '(Direct Relative Proxy / Same Origin localhost:8000)'}</code>
             </p>
           </div>
+
+          {backendUrl.includes('10.134.243.228') && (
+            <div className="p-3 rounded-xl border border-amber-500/40 bg-amber-950/30 text-amber-300 text-xs flex items-center gap-2">
+              <Info className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>
+                <strong>Attention:</strong> 10.134.243.228 is your ESP32-CAM hardware IP. The Python backend runs on port 8000. Click <strong>Reset Default</strong> above to connect to your AI backend.
+              </span>
+            </div>
+          )}
 
           {apiSavedNotice && (
             <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">

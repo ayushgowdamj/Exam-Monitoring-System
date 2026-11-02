@@ -3,15 +3,30 @@ import axios from 'axios';
 export const getApiBase = (): string => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('examguard_api_base');
-    if (saved) return saved.trim();
+    if (saved) {
+      const clean = saved.trim();
+      // Guard: The ESP32-CAM (port 80) is an optical hardware camera, NOT the Python FastAPI backend
+      if (clean.includes('10.134.243.228') && !clean.includes(':8000')) {
+        localStorage.removeItem('examguard_api_base');
+        return '';
+      }
+      return clean;
+    }
   }
   return import.meta.env.VITE_API_BASE || '';
 };
 
 export const setApiBase = (url: string): void => {
   if (typeof window !== 'undefined') {
-    if (url) {
-      localStorage.setItem('examguard_api_base', url.trim());
+    if (url && url.trim()) {
+      const clean = url.trim();
+      // Guard: Disallow configuring ESP32-CAM IP as backend API
+      if (clean.includes('10.134.243.228') && !clean.includes(':8000')) {
+        localStorage.removeItem('examguard_api_base');
+        api.defaults.baseURL = '';
+        return;
+      }
+      localStorage.setItem('examguard_api_base', clean);
     } else {
       localStorage.removeItem('examguard_api_base');
     }

@@ -48,10 +48,8 @@ def live_status():
 
 @router.get("/frame")
 def live_frame(t: Optional[str] = None):
-    """Serve the latest annotated JPEG frame directly."""
+    """Serve the latest annotated JPEG frame directly (never returns 404)."""
     frame_bytes = get_latest_frame()
-    if not frame_bytes:
-        raise HTTPException(status_code=404, detail="No frame captured yet")
     return Response(
         content=frame_bytes,
         media_type="image/jpeg",

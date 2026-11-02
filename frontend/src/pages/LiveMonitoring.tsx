@@ -25,6 +25,7 @@ import {
   stopLiveMonitoring,
   fetchLiveStatus,
   LiveStatus,
+  getApiBase,
 } from '../api/client';
 
 export const LiveMonitoring: React.FC = () => {
@@ -273,20 +274,22 @@ export const LiveMonitoring: React.FC = () => {
             </div>
 
             {/* Video Viewport */}
-            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[360px]">
               {viewMode === 'ai_stream' ? (
-                status?.running && !streamError ? (
-                  <img
-                    key={frameTimestamp}
-                    src={`/api/live/frame?t=${frameTimestamp}`}
-                    alt="ESP32 Live Feed"
-                    className="w-full h-full object-contain"
-                    onError={() => {
-                      if (!status?.connected) {
-                        setStreamError(true);
-                      }
-                    }}
-                  />
+                status?.running ? (
+                  <div className="relative w-full h-full flex items-center justify-center bg-black">
+                    <img
+                      src={`${getApiBase()}/api/live/frame?t=${frameTimestamp}`}
+                      alt="ESP32 Live Feed"
+                      className="w-full h-full object-contain select-none"
+                    />
+                    {!status.connected && (
+                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs backdrop-blur-md flex items-center gap-2">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Handshaking with camera...
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="text-center p-6 space-y-3">
                     <div className="w-16 h-16 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
@@ -294,24 +297,20 @@ export const LiveMonitoring: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold text-slate-300">
-                        {status?.running ? 'Connecting to Camera Stream...' : 'Live Stream Paused'}
+                        Live Stream Standby
                       </h4>
                       <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        {status?.running
-                          ? `Attempting handshake with ESP32-CAM at ${cameraIp}. Ensure the device is powered on and connected to the same Wi-Fi network.`
-                          : 'Click "Start Live Inference" on the right to start continuous monitoring with the YOLO model.'}
+                        Click "Start Live Inference" to initiate optical tracking from your ESP32-CAM ({cameraIp}).
                       </p>
                     </div>
-                    {!status?.running && (
-                      <button
-                        onClick={handleStart}
-                        disabled={isLoading}
-                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all inline-flex items-center gap-2"
-                      >
-                        <Play className="w-4 h-4 fill-white" />
-                        Start Live Inference
-                      </button>
-                    )}
+                    <button
+                      onClick={handleStart}
+                      disabled={isLoading}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition-all inline-flex items-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      {isLoading ? 'Connecting...' : 'Start Live Inference'}
+                    </button>
                   </div>
                 )
               ) : (
@@ -514,6 +513,14 @@ export const LiveMonitoring: React.FC = () => {
                 <span className="text-blue-400 font-mono">best.pt (YOLOv8)</span>
               </div>
             </div>
+
+            <Link
+              to="/events"
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-blue-400 hover:text-blue-300 text-xs font-semibold flex items-center justify-center gap-2 border border-slate-800 transition-colors shadow-sm"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+              Open Detection Events Log ({status?.total_cheating || 0} incidents)
+            </Link>
           </div>
 
           {/* Quick Hardware Diagnostics */}

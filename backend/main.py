@@ -76,12 +76,32 @@ app.include_router(analytics.router)
 app.include_router(cameras.router)
 app.include_router(live.router)
 
+# Mount frontend production build directly so the app can be run as a single unified service on port 8000
+import os
+from fastapi import HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-@app.get("/")
-def root():
-    return {
-        "app": APP_NAME,
-        "version": APP_VERSION,
-        "tagline": APP_TAGLINE,
-        "docs": "/docs",
-    }
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if os.path.isdir(frontend_dist) and os.path.isfile(os.path.join(frontend_dist, "index.html")):
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        target_file = os.path.join(frontend_dist, full_path)
+        if full_path and os.path.isfile(target_file):
+            return FileResponse(target_file)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+else:
+    @app.get("/")
+    def root():
+        return {
+            "app": APP_NAME,
+            "version": APP_VERSION,
+            "tagline": APP_TAGLINE,
+            "docs": "/docs",
+        }

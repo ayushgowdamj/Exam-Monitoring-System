@@ -35,9 +35,13 @@ export const LiveMonitoring: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [frameTimestamp, setFrameTimestamp] = useState<number>(Date.now());
   const [viewMode, setViewMode] = useState<'ai_stream' | 'direct_esp32'>('ai_stream');
-  const [streamError, setStreamError] = useState<boolean>(false);
+  const [frameError, setFrameError] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const lastCheatingTimeRef = useRef<number>(0);
+
+  // Check if running on Vercel host
+  const isVercelHost = typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app');
+  const hasCustomApiBase = Boolean(getApiBase());
 
   // Synthesize audible warning beep using Web Audio API in browser
   const playAlertBeep = () => {
@@ -71,9 +75,8 @@ export const LiveMonitoring: React.FC = () => {
         const s = await fetchLiveStatus();
         if (isMounted) {
           setStatus(s);
-          if (s.running && s.connected) {
+          if (s.running) {
             setFrameTimestamp(Date.now());
-            setStreamError(false);
 
             // Check if cheating was detected in the latest frame
             if (s.latest_detections && s.latest_detections.some((d) => d.class_name === 'cheating')) {
@@ -84,7 +87,7 @@ export const LiveMonitoring: React.FC = () => {
               }
             }
           }
-          if (s.error) {
+          if (s.error && s.running) {
             setErrorMessage(s.error);
           }
         }
@@ -94,7 +97,7 @@ export const LiveMonitoring: React.FC = () => {
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 1500);
+    const interval = setInterval(checkStatus, 2000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -104,7 +107,7 @@ export const LiveMonitoring: React.FC = () => {
   const handleStart = async () => {
     setIsLoading(true);
     setErrorMessage(null);
-    setStreamError(false);
+    setFrameError(false);
     try {
       const res = await startLiveMonitoring(cameraIp);
       if (res.ok) {
@@ -125,13 +128,20 @@ export const LiveMonitoring: React.FC = () => {
 
   const handleStop = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       await stopLiveMonitoring();
-      const s = await fetchLiveStatus();
-      setStatus(s);
     } catch (err: any) {
-      setErrorMessage('Failed to stop live monitoring');
+      console.warn('Stop notice:', err);
     } finally {
+      // Optimistically update running status to eliminate UI lag
+      setStatus((prev) => (prev ? { ...prev, running: false, connected: false } : null));
+      try {
+        const s = await fetchLiveStatus();
+        setStatus(s);
+      } catch (e) {
+        // ignore
+      }
       setIsLoading(false);
     }
   };
@@ -214,6 +224,22 @@ export const LiveMonitoring: React.FC = () => {
         </div>
       </div>
 
+      {/* Vercel cloud warning notice if API Base not configured */}
+      {isVercelHost && !hasCustomApiBase && (
+        <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-950/30 text-blue-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Radio className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>
+              <strong>Vercel Cloud Deployment:</strong> The Python YOLO backend runs on your local machine or server. To connect live camera inference to Vercel, visit{' '}
+              <Link to="/settings" className="underline font-semibold text-white hover:text-blue-200">
+                Settings
+              </Link>{' '}
+              and set your Backend API URL (or open locally via <code className="text-blue-200">http://localhost:5173</code>).
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Error banner */}
       {errorMessage && (
         <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-950/20 text-rose-300 text-xs flex items-center justify-between">
@@ -281,9 +307,20 @@ export const LiveMonitoring: React.FC = () => {
                     <img
                       src={`${getApiBase()}/api/live/frame?t=${frameTimestamp}`}
                       alt="ESP32 Live Feed"
-                      className="w-full h-full object-contain select-none"
+                      className={`w-full h-full object-contain select-none transition-opacity duration-200 ${
+                        frameError ? 'opacity-0' : 'opacity-100'
+                      }`}
+                      onLoad={() => setFrameError(false)}
+                      onError={() => setFrameError(true)}
                     />
-                    {!status.connected && (
+                    {frameError && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-400 p-6 text-center">
+                        <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mb-3" />
+                        <p className="text-sm font-semibold text-slate-200">Reconnecting to Live Camera Feed...</p>
+                        <p className="text-xs text-slate-400 mt-1">Waiting for frame from ESP32-CAM ({cameraIp})</p>
+                      </div>
+                    )}
+                    {!status.connected && !frameError && (
                       <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs backdrop-blur-md flex items-center gap-2">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         Handshaking with camera...

@@ -4,6 +4,12 @@ AI ExamGuard — Live Camera Service
 Background worker that polls an ESP32-CAM /capture endpoint,
 runs YOLO inference on each frame, records cheating detection events
 into the database, triggers audio alerts, and serves annotated frames.
+
+Optimized for ESP32 stability:
+- Configures VGA framesize (640x480) to prevent brownout reboots.
+- Paces polling to ~3.0s to keep voltage regulator and Wi-Fi cool.
+- Non-blocking instant stop handler.
+- Always serves a valid standby JPEG so browser never shows broken image icon.
 """
 import logging
 import threading
@@ -75,7 +81,7 @@ _state: Dict[str, Any] = {
     "last_frame_time": None,
     "last_inference_time": None,
     "latest_detections": [],
-    "latest_frame_jpeg": _create_standby_frame(),  # Pre-populated standby frame
+    "latest_frame_jpeg": _create_standby_frame(),
     "latest_raw_frame_jpeg": None,
     "frames_processed": 0,
     "total_cheating": 0,
@@ -114,25 +120,16 @@ def get_latest_frame() -> bytes:
         return _create_standby_frame()
 
 
-def start_live_monitoring(camera_ip: str = "10.134.243.228", capture_interval: float = 2.0) -> dict:
-    """Start the background polling worker."""
+def start_live_monitoring(camera_ip: str = "10.134.243.228", capture_interval: float = 3.0) -> dict:
+    """Start the background polling worker with brownout protection."""
     global _worker_thread
 
     clean_ip = normalize_camera_ip(camera_ip)
     if not clean_ip:
         return {"ok": False, "error": "Camera IP address cannot be empty"}
 
-    with _lock:
-        if _state["running"]:
-            if _state["camera_ip"] == clean_ip and _state["connected"]:
-                return {"ok": True, "message": "Already running"}
-            # If changing IP or was in error, stop previous
-            _stop_event.set()
-
-    if _worker_thread is not None and _worker_thread.is_alive():
-        _worker_thread.join(timeout=3)
-
-    _stop_event.clear()
+    # Signal stop on any previous instance
+    _stop_event.set()
 
     with _lock:
         _state.update({
@@ -151,9 +148,23 @@ def start_live_monitoring(camera_ip: str = "10.134.243.228", capture_interval: f
             "fps": 0.0,
         })
 
+    # Clear stop event for the new worker
+    _stop_event.clear()
+
+    # Pre-configure camera resolution to VGA (framesize=10) to reduce power draw & prevent rebooting
+    def _optimize_camera():
+        try:
+            req = Request(f"http://{clean_ip}/control?var=framesize&val=10", headers={"User-Agent": "ExamGuard/1.0"})
+            urlopen(req, timeout=3)
+            logger.info(f"ESP32-CAM {clean_ip} framesize set to VGA (640x480)")
+        except Exception as e:
+            logger.debug(f"Framesize optimize notice: {e}")
+
+    threading.Thread(target=_optimize_camera, daemon=True).start()
+
     _worker_thread = threading.Thread(
         target=_polling_worker,
-        args=(clean_ip, capture_interval),
+        args=(clean_ip, max(2.5, capture_interval)),
         daemon=True,
     )
     _worker_thread.start()
@@ -163,22 +174,15 @@ def start_live_monitoring(camera_ip: str = "10.134.243.228", capture_interval: f
 
 
 def stop_live_monitoring() -> dict:
-    """Stop the background polling worker."""
-    with _lock:
-        if not _state["running"]:
-            return {"ok": True, "message": "Not running"}
-
+    """Stop the background polling worker instantly without blocking."""
     _stop_event.set()
-
-    if _worker_thread is not None and _worker_thread.is_alive():
-        _worker_thread.join(timeout=5)
 
     with _lock:
         _state["running"] = False
         _state["connected"] = False
         _state["latest_frame_jpeg"] = _create_standby_frame("Live Stream Paused")
 
-    logger.info("Live monitoring stopped")
+    logger.info("Live monitoring stop requested successfully")
     return {"ok": True}
 
 
@@ -209,7 +213,7 @@ def _polling_worker(camera_ip: str, capture_interval: float):
         db.rollback()
 
     consecutive_errors = 0
-    max_consecutive_errors = 15
+    max_consecutive_errors = 20
     worker_start_time = time.time()
 
     logger.info(f"Polling worker started: {capture_url} every {capture_interval}s")
@@ -219,9 +223,9 @@ def _polling_worker(camera_ip: str, capture_interval: float):
             loop_start = time.time()
 
             try:
-                # Capture frame from ESP32-CAM
+                # Capture frame from ESP32-CAM with 4-second socket timeout
                 req = Request(capture_url, headers={"User-Agent": "ExamGuard/1.0"})
-                resp = urlopen(req, timeout=6)
+                resp = urlopen(req, timeout=4)
                 jpeg_bytes = resp.read()
 
                 if len(jpeg_bytes) < 100:
@@ -375,14 +379,16 @@ def _polling_worker(camera_ip: str, capture_interval: float):
                         _state["latest_frame_jpeg"] = _create_standby_frame("Camera Offline — Check Power & Wi-Fi")
                     break
 
-            # Sleep between captures
+                # Back off on error to let the camera power rail recover
+                _stop_event.wait(3.0)
+
+            # Sleep between captures (ensures ~3 seconds total loop time)
             elapsed = time.time() - loop_start
-            sleep_time = max(0, capture_interval - elapsed)
-            if sleep_time > 0:
-                _stop_event.wait(sleep_time)
+            sleep_time = max(0.5, capture_interval - elapsed)
+            _stop_event.wait(sleep_time)
 
     finally:
         with _lock:
             _state["running"] = False
         db.close()
-        logger.info("Polling worker exited")
+        logger.info("Polling worker exited cleanly")
